@@ -42,10 +42,22 @@ def Initialize(subdata):
     settings.TriangleCue = Polygon(win, edges=3, size=8, fillColor='cyan', lineColor=None) # Neutral cue (based on image)
 
     # Target stimulus (black)
-    settings.CircleTarget = Circle(win, radius=4, fillColor='black', lineColor=None)
+    settings.CircleProb = Circle(win, radius=4, fillColor='black', lineColor=None)
+    settings.SquareProb = Rect(win, width=8, height=8, fillColor='black', lineColor=None)
+    settings.TriangleProb = Polygon(win, edges=3, size=8, fillColor='black', lineColor=None)
 
-    settings.cueTypes = [1, 2, 3]  # 1 = circle, 2 = square, 3 = triangle (representing cue types)
 
+    # # Cue stimuli (using images)
+    # settings.WinCue = ImageStim(win, image=os.path.join(img_path, 'WinCue.BMP'), size=(8, 8)) # Example size, adjust as needed
+    # settings.LoseCue = ImageStim(win, image=os.path.join(img_path, 'LoseCue.BMP'), size=(8, 8)) # Example size, adjust as needed
+    # settings.NeutralCue = ImageStim(win, image=os.path.join(img_path, 'NeutralCue.BMP'), size=(8, 8)) # Example size, adjust as needed
+
+    # # Target stimulus (using image)
+    # settings.WinProbe = ImageStim(win, image=os.path.join(img_path, 'WinProbe.BMP'), size=(8, 8)) # Example size, adjust as needed
+    # settings.LoseProbe = ImageStim(win, image=os.path.join(img_path, 'LoseProbe.BMP'), size=(8, 8)) # Example size, adjust as needed
+    # settings.NeutralProbe = ImageStim(win, image=os.path.join(img_path, 'NeutralProbe.BMP'), size=(8, 8)) # Example size, adjust as needed
+
+    settings.cueTypes = ['win', 'lose', 'neut']  # Representing the cue conditions
     # Timing
     settings.cueDuration = 1
     settings.targetDuration = 0.5 # Example duration, adjust as needed

@@ -1,10 +1,9 @@
-from .CountDown import CountDown
-from .ShowInstructions import ShowInstructions
-from .SubjectInformation import SubjectInformation
-from .CountDown import RealTimeCountDown
 from .Initialize import Initialize
 from .GenTrialSeq import GenTrialSeq
-from .SetupSeed import SetupSeed
 from .RunTask import RunTask
-from .TerminateTask import TerminateTask
+import os
+# Get the directory where __init__.py is located (which is TaskFunc)
+taskfunc_dir = os.path.dirname(os.path.abspath(__file__))
+# Construct the path to the img folder
+img_path = os.path.join(taskfunc_dir, 'img')
 
