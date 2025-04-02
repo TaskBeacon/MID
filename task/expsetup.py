@@ -3,10 +3,10 @@ from psychopy.hardware import keyboard
 from psychopy.visual import Circle, Rect, Polygon
 from types import SimpleNamespace
 from datetime import datetime
-from TaskFunc.SetupSeed import SetupSeed
+from task.SetupSeed import SetupSeed
 
 
-def Initialize(subdata):
+def exp_setup(subdata):
     """
     Initializes window, stimuli, experiment settings, and keyboard.
 

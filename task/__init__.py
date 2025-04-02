@@ -1,6 +1,6 @@
-from .Initialize import Initialize
-from .GenTrialSeq import GenTrialSeq
-from .RunTask import RunTask
+from .expsetup import Initialize
+from .trialcontrol import GenTrialSeq
+from .expcontrol import RunTask
 import os
 # Get the directory where __init__.py is located (which is TaskFunc)
 taskfunc_dir = os.path.dirname(os.path.abspath(__file__))

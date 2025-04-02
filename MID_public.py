@@ -254,9 +254,9 @@ Target = visual.Rect(win,width=0.5, height=0.5, fillColor = "white", lineWidth=0
 # Initialize components for Routine "Feedback"
 FeedbackClock = core.Clock()
 Trial_FB = visual.TextStim(win=win, name='Trial_FB',text='Trial earnings:',font='Arial',pos=(0, yScr/6), height=fontH+yScr/30, wrapWidth=None, ori=0, 
-    color='Orange', colorSpace='rgb', opacity=1);
+    color='Orange', colorSpace='rgb', opacity=1)
 Exp_FB = visual.TextStim(win=win, name='Exp_FB',text='Total earnings:',font='Arial',pos=(0, -yScr/20), height=fontH+yScr/30, wrapWidth=None, ori=0, 
-    color='Aqua', colorSpace='rgb', opacity=1);
+    color='Aqua', colorSpace='rgb', opacity=1)
 Blank_FB_Rectangle = visual.ImageStim(win=win, name='Blank_FB', mask=None,ori=0, pos=(0, 0), size=(xScr/8, xScr/8),texRes=128, interpolate=True)
 
 # Create some handy timers
