@@ -232,7 +232,7 @@ fix = visual.TextStim(win, pos=[0, 0], text='+', height=fontH*2, color=textCol)
 FixClock = core.Clock()
 
 # Initialize components for Routine "instructions"
-instructPrompt = visual.TextStim(win=win, font='Arial', pos=(0, yScr/10), height=fontH, wrapWidth=wrapW, color=textCol);
+instructPrompt = visual.TextStim(win=win, font='Arial', pos=(0, yScr/10), height=fontH, wrapWidth=wrapW, color=textCol)
 instructFinish = visual.TextStim(win, text="You have reached the end of the instructions. When you are ready to begin the task, place your fingers on the keys notify the experimenter.",
                                      height=fontH, color=textCol, pos=[0, 0], wrapWidth=wrapW)    
 
@@ -320,7 +320,6 @@ nominalTime = t # set up virtual time keeper to align actual with a-priori time 
 for thisTrial in trials:
     trials.addOtherData('time.onset', globalClock.getTime()) # add trial onset time to the data file
     currentLoop = trials
-        
     # update component parameters for each repeat
     Choice_Resp = event.BuilderKeyResponse()
     CueColor = stimuli.iloc[trial_counter][0] # get cue color from the externally imported stimuli list, based on trial_counter
