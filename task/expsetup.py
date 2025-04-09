@@ -3,7 +3,7 @@ from psychopy.hardware import keyboard
 from psychopy.visual import Circle, Rect, Polygon
 from types import SimpleNamespace
 from datetime import datetime
-from task.SetupSeed import SetupSeed
+from psyflow import SetupSeed
 
 
 def exp_setup(subdata):
@@ -60,7 +60,7 @@ def exp_setup(subdata):
     settings.cueTypes = ['win', 'lose', 'neut']  # Representing the cue conditions
     # Timing
     settings.cueDuration = 1
-    settings.targetDuration = 0.5 # Example duration, adjust as needed
+    settings.ProbDuration = 0.5 # Example duration, adjust as needed
     settings.trialDuration = 3
 
     # Keyboard settings
