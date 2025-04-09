@@ -3,7 +3,7 @@ from psychopy.hardware import keyboard
 from psychopy.visual import Circle, Rect, Polygon
 from types import SimpleNamespace
 from datetime import datetime
-from psyflow import SetupSeed
+from psyflow.seedcontrol import setup_seed_for_settings
 
 
 def exp_setup(subdata):
@@ -23,7 +23,7 @@ def exp_setup(subdata):
         units="deg",
         screen=1,
         color="white",
-        fullscr=True,
+        fullscr=False,
         gammaErrorPolicy='ignore'  # avoid gamma ramp errors
     )
 
@@ -34,7 +34,7 @@ def exp_setup(subdata):
     settings.TrialsPerBlock = settings.TotalTrials // settings.TotalBlocks
 
     # random seed
-    settings = SetupSeed(settings, subdata, mode="indiv") # each sub will have a unique seed
+    settings = setup_seed_for_settings(settings, subdata, mode="indiv") # each sub will have a unique seed
 
     # Cue stimuli (colored)
     settings.CircleCue = Circle(win, radius=4, fillColor='magenta', lineColor=None) # Reward cue (based on image)
@@ -59,9 +59,12 @@ def exp_setup(subdata):
 
     settings.cueTypes = ['win', 'lose', 'neut']  # Representing the cue conditions
     # Timing
-    settings.cueDuration = 1
+    settings.fixDuration = 0.5
+    settings.cueDuration = 0.5
+    settings.antiDuration = 0.5
     settings.ProbDuration = 0.5 # Example duration, adjust as needed
-    settings.trialDuration = 3
+    settings.fbDuration = 1
+    settings.iti=1
 
     # Keyboard settings
     settings.responseKey = 'space' # Assuming a single key press to the target

@@ -1,243 +1,256 @@
 from psychopy import visual, event, core, logging
 import numpy as np
-from task import CountDown
+import pandas as pd
+from psyflow.screenflow import show_static_countdown
 
 def exp_run(win, kb, settings, trialseq, subdata):
+    """
+    Runs the MID task. Each trial proceeds as follows:
+      1. Fixation cross.
+      2. Cue stimulus (colored shape) for settings.cueDuration.
+      3. Anticipation period (a blank screen) for settings.antiDuration.
+      4. Target stimulus (black shape) for a dynamic duration.
+         Participants respond (using settings.responseKey) during the target.
+      5. Feedback is shown (hit/miss and points earned).
+      6. Inter-trial interval (ITI).
+      
+    Point outcomes:
+       - Win condition: Hit = +10; Miss = 0.
+       - Lose condition: Hit = 0; Miss = –10.
+       - Neutral condition: Always 0.
+       
+    The target duration is adjusted based on the accumulated hit rate per condition,
+    aiming for an overall hit rate of ~66%.
+    """
+    # Setup logging
     log_filename = settings.outfile.replace('.csv', '.log')
     logging.LogFile(log_filename, level=logging.DATA, filemode='a')
     logging.console.setLevel(logging.INFO)
+    event.globalKeys.clear()
     event.globalKeys.add(key='q', modifiers=['ctrl'], func=core.quit)
-    # Prepare visual components
+    event.Mouse(visible=False)  # hide the mouse cursor
+
+    # Prepare basic visual components
     fix = visual.TextStim(win, height=1, text="+", wrapWidth=10, color='black', pos=[0, 0])
-    warning = visual.TextStim(win, text="TOO SLOW!!!", height=.6, wrapWidth=10, color='red', pos=[0, 0])
-    BlockFeedback = visual.TextStim(win, height=.6, wrapWidth=25, color='black', pos=[0, 0])
+    feedback_text = visual.TextStim(win, height=0.6, wrapWidth=25, color='black', pos=[0, 0])
+    BlockFeedback = visual.TextStim(win, height=0.6, wrapWidth=25, color='black', pos=[0, 0])
 
-    # Extract shortcut parameters from settings
-    LeftSSD = settings.initSSD     # Initial stop-signal delay for left trials
-    RightSSD = settings.initSSD    # Initial stop-signal delay for right trials
-    stairsize = settings.staircase # Step size for staircase SSD adjustment
-    keyList = settings.keyList     # Allowed response keys
-    left_key = settings.left_key   # Key for left arrow
-    right_key = settings.right_key # Key for right arrow
+    # Timing parameters
+    # Use a staircase step if defined; otherwise default to 0.05 sec.
+    try:
+        step = settings.staircase
+    except AttributeError:
+        step = 0.05
+    min_td = 0.1   # minimum target duration (seconds)
+    max_td = 1.5   # maximum target duration (seconds)
+    
+    # Define stimulus mappings: cues (colored shapes) and targets (black shapes)
+    cue_map = {
+        'win': settings.CircleCue,    # reward cue (magenta circle)
+        'lose': settings.SquareCue,   # punishment cue (yellow square)
+        'neut': settings.TriangleCue    # neutral cue (cyan triangle)
+    }
+    target_map = {
+        'win': settings.CircleProb,    # target for win condition
+        'lose': settings.SquareProb,   # target for lose condition
+        'neut': settings.TriangleProb  # target for neutral condition
+    }
+    
+    # Initialize the current target duration for each condition
+    target_dur = {"win": settings.ProbDuration,
+                  "lose": settings.ProbDuration,
+                  "neut": settings.ProbDuration}
+    # Initialize hit record (cumulative) for each condition
+    hit_record = {
+        "win": {"hits": 0, "total": 0},
+        "lose": {"hits": 0, "total": 0},
+        "neut": {"hits": 0, "total": 0}
+    }
+    
+    # Initialize overall points counter.
+    total_points = 0
 
-    # Temporary container for block-level data
+    # Prepare a container for block-level data using a simple namespace
     class blockdata:
         pass
+    # Initialize empty data fields (using numpy arrays to allow hstacking)
+    blockdata.cond = np.array([], dtype=object)           # Condition: 'win', 'lose', 'neut'
+    blockdata.cue = np.array([], dtype=object)            # Cue shape label (e.g., 'circle', etc.)
+    blockdata.response = np.array([], dtype=object)         # Response (settings.responseKey if hit; 0 otherwise)
+    blockdata.RT = np.array([], dtype=object)             # Reaction time in ms
+    blockdata.points_trial = np.array([], dtype=object)     # Points earned on the trial
+    blockdata.target_dur = np.array([], dtype=object)       # Target duration (s) for the trial
+    blockdata.blockNum = np.array([], dtype=object)         # Block number
+    blockdata.DATA = []  # this will eventually contain the block data matrix
 
-    # Initialize empty data fields
-    blockdata.arrow = []      # Presented arrow direction (1=left, 2=right)
-    blockdata.resp = []       # Response key (1=left_key, 2=right_key, 0=none)
-    blockdata.LeftSSD = []    # Left SSD
-    blockdata.RightSSD = []   # Right SSD   
-    blockdata.RT = []         # Reaction time
-    blockdata.acc = []        # Accuracy (1=correct, 0=wrong, -1=miss, 3=successful stop, 4=failed stop)
-    blockdata.DATA = []       # Matrix for saving after each block
-    blockdata.GOidx = []      # 1=Go trial, 0=Stop trial
-    blockdata.blockNum = []   # Block number
-
-    # Loop through all trials
-    for i in range(len(trialseq.stop)):
+    # Loop through all trials in the generated trial sequence.
+    for i in range(len(trialseq.conditions)):
         kb.clock.reset()
         kb.clearEvents()
-        StopSignal = []
-
-        # Choose stimulus type for this trial
-        if trialseq.arrows[i] == 1:  # left arrow
-            arrow = settings.Larrow
-            if trialseq.stop[i] == 1:
-                if settings.useUpArrowStop:
-                    StopSignal = settings.UparrowSTOP
-                else:
-                    StopSignal = settings.LarrowSTOP
-        else:  # right arrow
-            arrow = settings.Rarrow
-            if trialseq.stop[i] == 1:
-                if settings.useUpArrowStop:
-                    StopSignal = settings.UparrowSTOP
-                else:
-                    StopSignal = settings.RarrowSTOP
-
-        trial_onset = core.getTime()
-
-        # Fixation cross
+        # trial_onset = core.getTime()
+        
+        # Get condition for the current trial: 'win', 'lose', or 'neut'
+        cond = trialseq.conditions[i]
+        # Select corresponding cue and target stimuli.
+        cue_stim = cue_map[cond]
+        target_stim = target_map[cond]
+        
+        # -------------------------
+        # 1. Fixation
         fix.draw()
         win.flip()
-        core.wait(0.5)
-
-        # Show black arrow (Go stimulus)
-        arrow.draw()
+        core.wait(settings.fixDuration)
+        
+        # -------------------------
+        # 2. Cue Presentation
+        cue_stim.draw()
         win.flip()
-        arrow_onset = core.getTime()
-
+        core.wait(settings.cueDuration)
+        
         # -------------------------
-        # ▶️ Go Trial
+        # 3. Anticipation (Blank Screen)
+        win.flip()  # blank screen
+        core.wait(settings.antiDuration)
+        
         # -------------------------
-        if trialseq.stop[i] == 0:
-            blockdata.GOidx = np.hstack((blockdata.GOidx, 1))  # Mark as Go trial
-            event.clearEvents()
-            resp = event.waitKeys(maxWait=settings.arrowDuration, keyList=keyList)
-
-            if resp:  # A response was made
-                RT = core.getTime() - arrow_onset
-                key = resp[0]
-                if trialseq.arrows[i] == 1 and key == left_key:
-                    acc = 1  # correct
-                elif trialseq.arrows[i] == 2 and key == right_key:
-                    acc = 1  # correct
-                else:
-                    acc = 0  # wrong key
-            else:  # No response
-                acc = -1
-                RT = 0
-                warning.draw()
-                win.flip()
-                core.wait(settings.trialDuration - (core.getTime() - trial_onset))
-
-        # -------------------------
-        # ⛔ Stop Trial
-        # -------------------------
+        # 4. Target Presentation and Response Collection
+        target_stim.draw()
+        win.flip()
+        target_onset = core.getTime()
+        # Use updated target duration for this condition
+        resp = event.waitKeys(maxWait=target_dur[cond], keyList=settings.keyList)
+        if resp:
+            hit = True
+            RT = core.getTime() - target_onset
         else:
-            blockdata.GOidx = np.hstack((blockdata.GOidx, 0))  # Mark as Stop trial
-            event.clearEvents()
+            hit = False
+            RT = 0
 
-            # Wait for SSD (delay before showing StopSignal)
-            if trialseq.arrows[i] == 1:
-                core.wait(LeftSSD / 1000)
+        # -------------------------
+        # 5. Feedback and Point Assignment
+        if cond == 'win':
+            points_trial = 10 if hit else 0
+        elif cond == 'lose':
+            points_trial = 0 if hit else -10
+        else:  # neutral condition
+            points_trial = 0
+        
+        total_points += points_trial
+        
+        if hit:
+            if cond == 'win':
+                fb_msg = "Hit! +10 points"
+            elif cond == 'lose':
+                fb_msg = "Hit!"
             else:
-                core.wait(RightSSD / 1000)
-
-            # Show red arrow (Stop signal)
-            StopSignal.draw()
-            win.flip()
-            arrow_onset = core.getTime()
-
-            # Wait for remaining response time
-            if trialseq.arrows[i] == 1: # left arrow
-                resp = event.waitKeys(maxWait=settings.arrowDuration - LeftSSD / 1000, keyList=keyList)
-                if resp:
-                    acc = 4  # failed to stop
-                    RT = core.getTime() - arrow_onset
-                    LeftSSD = max(LeftSSD - stairsize, 0)
-                else:
-                    acc = 3  # successfully stopped
-                    RT = 0
-                    LeftSSD += stairsize
-            else:
-                resp = event.waitKeys(maxWait=settings.arrowDuration - RightSSD / 1000, keyList=keyList)
-                if resp:
-                    acc = 4 # failed to stop
-                    RT = core.getTime() - arrow_onset
-                    RightSSD = max(RightSSD - stairsize, 0)
-                else:
-                    acc = 3 # successfully stopped
-                    RT = 0
-                    RightSSD += stairsize
-            
-        # Convert key press to numerical code
-        if resp and resp[0] == left_key:
-            resp_code = 1
-        elif resp and resp[0] == right_key:
-            resp_code = 2
+                fb_msg = "Hit!"
         else:
-            resp_code = 0
-        logging.data(f"Trial {i+1}: Block={trialseq.blocknum[i]}, Type={'GO' if trialseq.stop[i]==0 else 'STOP'}, "
-            f"Arrow={trialseq.arrows[i]}, Resp={resp_code}, ACC={acc}, RT={int(RT*1000)}ms")
-        # Save data for this trial
-        blockdata.RT = np.hstack((blockdata.RT, int(RT * 1000)))  # Convert to ms
-        blockdata.arrow = np.hstack((blockdata.arrow, trialseq.arrows[i]))
-        blockdata.resp = np.hstack((blockdata.resp, resp_code))
+            if cond == 'lose':
+                fb_msg = "Miss! -10 points"
+            else:
+                fb_msg = "Miss!"
+        fb_msg += f"\nTotal: {total_points} points"
+        feedback_text.text = fb_msg
+        feedback_text.draw()
+        win.flip()
+        core.wait(settings.fbDuration)
+        
+        # -------------------------
+        # 6. Inter-Trial Interval (ITI)
+        fix.draw()
+        win.flip()
+        core.wait(settings.iti)
+        
+        # -------------------------
+        # Update Dynamic Target Duration Based on Accumulated Hit Rate
+        hit_record[cond]["total"] += 1
+        if hit:
+            hit_record[cond]["hits"] += 1
+        current_hit_rate = hit_record[cond]["hits"] / hit_record[cond]["total"]
+        # Adjust target duration if hit rate deviates from 66%
+        if current_hit_rate > 0.66:
+            target_dur[cond] = max(target_dur[cond] - step, min_td)
+        elif current_hit_rate < 0.66:
+            target_dur[cond] = min(target_dur[cond] + step, max_td)
+        
+        # -------------------------
+        # Logging Trial Data
+        logging.data(f"Trial {i+1}: Block={trialseq.blocknum[i]}, Condition={cond}, Cue={trialseq.stims[i]}, "
+                     f"Hit={'Yes' if hit else 'No'}, RT={int(RT*1000)}ms, Points={points_trial}, "
+                     f"TotalPoints={total_points}, TargetDur={target_dur[cond]:.2f}s, HitRate={current_hit_rate:.2f}")
+        
+        # Append trial data to block-level containers.
         blockdata.blockNum = np.hstack((blockdata.blockNum, trialseq.blocknum[i]))
-        blockdata.acc = np.hstack((blockdata.acc, acc))
-        blockdata.LeftSSD = np.hstack((blockdata.LeftSSD, LeftSSD))
-        blockdata.RightSSD = np.hstack((blockdata.RightSSD, RightSSD))
-
-        # Inter-trial interval (only if not a miss)
-        if acc != -1:
-            fix.draw()
-            win.flip()
-            core.wait(2.5 - (core.getTime() - trial_onset))
-
-        # -------------------------------------
-        # End of block → compute feedback
-        # -------------------------------------
+        blockdata.cond = np.hstack((blockdata.cond, cond))
+        blockdata.cue = np.hstack((blockdata.cue, trialseq.stims[i]))  # e.g., 'circle', 'square', or 'triangle'
+        blockdata.response = np.hstack((blockdata.response, settings.responseKey if resp else 0))
+        blockdata.RT = np.hstack((blockdata.RT, int(RT * 1000)))  # in ms.
+        blockdata.points_trial = np.hstack((blockdata.points_trial, points_trial))
+        blockdata.target_dur = np.hstack((blockdata.target_dur, target_dur[cond]))
+        
+        # -------------------------
+        # End-of-Block Processing
         if trialseq.BlockEndIdx[i] == 1:
-            STOPidx = blockdata.GOidx == 0
-            MISSidx = blockdata.acc == -1
-            RJTidx = STOPidx + MISSidx
-            GOrtOnly = np.delete(blockdata.RT, np.where(RJTidx), 0)
-            meanGOrt = np.mean(GOrtOnly)
-            GOtrials = np.sum(blockdata.GOidx == 1)
-            CorrectGO = np.sum(blockdata.acc == 1)
-            STOPtrials = np.sum(blockdata.GOidx == 0)
-            SuccesfulStop = np.sum(blockdata.acc == 3)
-
-            # Create feedback text
+            # Use current block's data only (using range based on blockdata length).
+            block_indices = range(len(blockdata.RT))
+            hit_RTs = [blockdata.RT[j] for j in block_indices if blockdata.response[j] != 0]
+            mean_RT = np.mean(hit_RTs) if hit_RTs else 0
+            block_accuracy = np.mean([1 if blockdata.response[j] != 0 else 0 for j in block_indices]) * 100
+            block_points = np.sum([blockdata.points_trial[j] for j in block_indices])
+            
             BlockFeedback.text = f"End of Block #{trialseq.blocknum[i]}\n"
-            BlockFeedback.text += f"Mean GO RT : {meanGOrt:.2f} ms\n"
-            BlockFeedback.text += f"Accuracy : {CorrectGO / GOtrials * 100:.2f} %\n"
-            BlockFeedback.text += f"p(STOP) : {SuccesfulStop / STOPtrials * 100:.2f} %\n"
+            BlockFeedback.text += f"Mean RT: {mean_RT:.0f} ms\n"
+            BlockFeedback.text += f"Accuracy: {block_accuracy:.1f}%\n"
+            BlockFeedback.text += f"Block Points: {block_points}\n"
             BlockFeedback.text += "Press SPACE to continue..."
-
-            # Stack trial data into a single matrix
-            temp = np.hstack([
-                blockdata.blockNum.reshape(-1, 1),
-                abs(blockdata.GOidx - 1).reshape(-1, 1),
-                blockdata.arrow.reshape(-1, 1),
-                blockdata.resp.reshape(-1, 1),
-                blockdata.LeftSSD.reshape(-1, 1),
-                blockdata.RightSSD.reshape(-1, 1),
-                blockdata.acc.reshape(-1, 1),
-                blockdata.RT.reshape(-1, 1),
-            ])
-
-            # Save data to block-level matrix
+            
+            # Organize block data into a dictionary and then a DataFrame.
+            blockdata_np = {
+                "Block": np.array(blockdata.blockNum, dtype=object).reshape(-1, 1),
+                "Condition": np.array(blockdata.cond, dtype=object).reshape(-1, 1),
+                "Cue": np.array(blockdata.cue, dtype=object).reshape(-1, 1),
+                "Response": np.array(blockdata.response, dtype=object).reshape(-1, 1),
+                "RT": np.array(blockdata.RT, dtype=object).reshape(-1, 1),
+                "TrialPoints": np.array(blockdata.points_trial, dtype=object).reshape(-1, 1),
+                "TargetDur": np.array(blockdata.target_dur, dtype=object).reshape(-1, 1)
+            }
+            temp = np.hstack(list(blockdata_np.values()))
             if trialseq.blocknum[i] == 1:
                 blockdata.DATA = temp
             else:
                 blockdata.DATA = np.vstack([blockdata.DATA, temp])
-
-            # Save to CSV
-            np.savetxt(settings.outfile, blockdata.DATA,
-                       header="Block,TrialType,Arrow,Response,leftSSD,rightSSD,ACC,RT",
-                       fmt='%4i', delimiter=',',
-                       footer=','.join(subdata))
-
-            # Display block feedback (wait for key)
+            
+            df = pd.DataFrame(blockdata.DATA, columns=["Block", "Condition", "Cue", "Response", "RT", "TrialPoints", "TargetDur"])
+            df.to_csv(settings.outfile, index=False)
+            with open(settings.outfile, 'a') as f:
+                f.write('\n' + ','.join(subdata))
+            
+            # Display block feedback until SPACE is pressed.
             while not event.getKeys(keyList=['space']):
                 BlockFeedback.draw()
                 win.flip()
-
-            # Optional feedback based on stopping performance
+            
+            # Optional: Additional performance feedback for the next block
             if trialseq.blocknum[i] < settings.TotalBlocks:
-                PerformanceFeedback = visual.TextStim(win, height=.6, wrapWidth=25, color='black', pos=[0, 0])
-                stop_rate = SuccesfulStop / STOPtrials
-                if stop_rate <= .45:
+                PerformanceFeedback = visual.TextStim(win, height=0.6, wrapWidth=25, color='black', pos=[0, 0])
+                if block_points < 0:
                     PerformanceFeedback.text = (
-                        "You're fast, but not stopping well.\n"
-                        "Focus more on stopping in the next block.\nThanks."
-                    )
-                elif stop_rate >= .55:
-                    PerformanceFeedback.text = (
-                        "You're stopping well, but responding slowly.\n"
+                        "Your performance in this block was below expectation.\n"
                         "Try to respond faster in the next block.\nThanks."
                     )
                 else:
-                    PerformanceFeedback.text = "You're doing great!\nKeep it up!"
-                PerformanceFeedback.text+= "Press SPACE to continue..."
-
+                    PerformanceFeedback.text = "Good job!\nKeep it up!"
+                PerformanceFeedback.text += " Press SPACE to continue..."
                 while not event.getKeys(keyList=['space']):
                     PerformanceFeedback.draw()
                     win.flip()
-
-                # Reset data containers for next block
-                blockdata.arrow = []
-                blockdata.resp = []
-                blockdata.LeftSSD = []
-                blockdata.RightSSD = []
-                blockdata.RT = []
-                blockdata.acc = []
-                blockdata.GOidx = []
-                blockdata.blockNum = []
-
-                # Countdown before next block
-                CountDown(win)
+                # Reset block data for the next block.
+                blockdata.blockNum = np.array([], dtype=object)
+                blockdata.cond = np.array([], dtype=object)
+                blockdata.cue = np.array([], dtype=object)
+                blockdata.response = np.array([], dtype=object)
+                blockdata.RT = np.array([], dtype=object)
+                blockdata.points_trial = np.array([], dtype=object)
+                blockdata.target_dur = np.array([], dtype=object)
+                # Countdown before the next block.
+                show_static_countdown(win)
