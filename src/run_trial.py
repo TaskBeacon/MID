@@ -89,7 +89,25 @@ def run_trial(
 
     hit_type = "hit" if hit else "miss"
     fb_stim = stim_bank.get(f"{condition}_{hit_type}_feedback")
-    fb = make_unit(unit_label="feedback").add_stim(fb_stim).show(
+    fb = make_unit(unit_label="feedback").add_stim(fb_stim)
+    set_trial_context(
+        fb,
+        trial_id=trial_id,
+        phase="feedback",
+        deadline_s=settings.feedback_duration,
+        valid_keys=[],
+        block_id=block_id,
+        condition_id=str(condition),
+        task_factors={
+            "condition": str(condition),
+            "stage": "feedback",
+            "hit": bool(hit),
+            "delta": float(delta),
+            "block_idx": block_idx,
+        },
+        stim_id=f"{condition}_{hit_type}_feedback",
+    )
+    fb.show(
         duration=settings.feedback_duration,
         onset_trigger=settings.triggers.get(f"{condition}_{hit_type}_fb_onset"),
     )

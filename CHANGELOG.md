@@ -4,6 +4,9 @@ All notable development changes for `T000006-mid` are documented here.
 
 ## [Unreleased]
 
+### Changed
+- Added responder context metadata for the participant-visible feedback phase in `src/run_trial.py`.
+
 ## [1.1.2] - 2026-03-02
 
 ### Added
