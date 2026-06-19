@@ -21,7 +21,19 @@ def run_trial(
     trial_data = {"condition": condition, "trial_id": trial_id}
     make_unit = partial(StimUnit, win=win, kb=kb, runtime=trigger_runtime)
 
-    make_unit(unit_label="cue").add_stim(stim_bank.get(f"{condition}_cue")).show(
+    cue = make_unit(unit_label="cue").add_stim(stim_bank.get(f"{condition}_cue"))
+    set_trial_context(
+        cue,
+        trial_id=trial_id,
+        phase="cue",
+        deadline_s=settings.cue_duration,
+        valid_keys=[],
+        block_id=block_id,
+        condition_id=str(condition),
+        task_factors={"condition": str(condition), "stage": "cue", "block_idx": block_idx},
+        stim_id=f"{condition}_cue",
+    )
+    cue.show(
         duration=settings.cue_duration,
         onset_trigger=settings.triggers.get(f"{condition}_cue_onset"),
     ).to_dict(trial_data)
@@ -75,7 +87,24 @@ def run_trial(
     )
     target.to_dict(trial_data)
 
-    make_unit(unit_label="prefeedback_fixation").add_stim(stim_bank.get("fixation")).show(
+    prefeedback = make_unit(unit_label="prefeedback_fixation").add_stim(stim_bank.get("fixation"))
+    set_trial_context(
+        prefeedback,
+        trial_id=trial_id,
+        phase="prefeedback_fixation",
+        deadline_s=settings.prefeedback_duration,
+        valid_keys=[],
+        block_id=block_id,
+        condition_id=str(condition),
+        task_factors={
+            "condition": str(condition),
+            "stage": "prefeedback_fixation",
+            "early_response": bool(early_response),
+            "block_idx": block_idx,
+        },
+        stim_id="fixation",
+    )
+    prefeedback.show(
         duration=settings.prefeedback_duration,
         onset_trigger=settings.triggers.get("fixation_onset"),
     ).to_dict(trial_data)
